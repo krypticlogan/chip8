@@ -1,39 +1,34 @@
 const std = @import("std");
 // const SDL = @import("sdl_lib");
-// const SDL = @cImport({
-//     @cDefine("SDL_DISABLE_OLD_NAMES", {});
-//     @cInclude("..SDL3/SDL.h");
-//     @cInclude("SDL3/SDL_revision.h");
-//     @cDefine("SDL_MAIN_HANDLED", {});
-//     @cInclude("SDL3/SDL_main.h");
-// });
-const SDL = @cImport({
-    @cInclude("SDL");
-    });
-// SDL.
-// const importing = @import("fjvsnvd");
-// sdl.
+const c = @cImport({
+    @cDefine("SDL_DISABLE_OLD_NAMES", {});
+    @cInclude("SDL3/SDL.h");
+    @cInclude("SDL3/SDL_revision.h");
+    @cDefine("SDL_MAIN_HANDLED", {});
+    @cInclude("SDL3/SDL_main.h");
+});
+
 const print = std.debug.print;
 
-const FONTSET =  [_]u8{
-0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-0x20, 0x60, 0x20, 0x20, 0x70, // 1
-0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+const FONTSET = [_]u8{
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 };
-const timer = struct{
+const timer = struct {
     time: u8 = undefined,
 
     fn init(self: *@This(), time: u8) void {
@@ -41,7 +36,7 @@ const timer = struct{
     }
 
     fn countdown(self: *@This()) void {
-        self.time-=1;
+        self.time -= 1;
     }
 };
 
@@ -68,7 +63,7 @@ const CPU = struct {
     ///program counter
     pc: u16 = undefined,
     ///graphics
-    gfx: [64*32]u2 = undefined,
+    gfx: [64 * 32]u2 = undefined,
 
     //timers
     delay_timer: timer = timer{},
@@ -82,8 +77,8 @@ const CPU = struct {
     // 0x000-0x1FF - Chip 8 interpreter (contains font set in emu)
     // 0x050-0x0A0 - Used for the built in 4x5 pixel font set (0-F)
     // 0x200-0xFFF - Program ROM and work RAM
-    
-    ///Initializes the CPU 
+
+    ///Initializes the CPU
     /// - clears memory, registers and graphics
     /// - resets program values
     /// - loads the fontset
@@ -93,7 +88,7 @@ const CPU = struct {
         init0u8Array(&self.V);
         init0u2Array(&self.gfx);
         @memset(&self.stack, 0);
-        
+
         //reset values
         self.pc = 0;
         self.I = 0;
@@ -101,14 +96,14 @@ const CPU = struct {
         self.opcode = 0;
 
         //Load fontset
-        for(0..FONTSET.len) |i|{
+        for (0..FONTSET.len) |i| {
             self.memory[i] = FONTSET[i];
         }
-}
+    }
     // /Loads a chip-8 file
     fn load(self: *@This(), file: []u8) void {
-        for (0..file.len)|i|{
-            self.memory[i+0x200] = file[i];
+        for (0..file.len) |i| {
+            self.memory[i + 0x200] = file[i];
         }
     }
 
@@ -123,15 +118,38 @@ const CPU = struct {
     }
 };
 
+fn mainLoop() !void {
+    var running = true;
+    while (running) {
+        var event: c.SDL_Event = undefined;
+        while (c.SDL_PollEvent(&event)) {
+            switch (event.type) {
+                c.SDL_EVENT_QUIT => {
+                    running = false;
+                },
+                else => {},
+            }
+        }
+    }
+}
+const sleep = std.time.sleep;
+
 pub fn main() !void {
-    if (SDL.SDL_Init(SDL.SDL_INIT_VIDEO) != false) {
-        std.debug.print("SDL_Init failed: {s}\n", .{SDL.SDL_GetError()});
+    if (c.SDL_Init(c.SDL_INIT_VIDEO) == false) {
+        std.debug.print("SDL_Init failed: {s}\n", .{c.SDL_GetError()});
         return error.InitializationFailed;
     }
-    // ... rest of your code ...
-    defer SDL.SDL_Quit();
-    
+    defer c.SDL_Quit();
+
+    const win = c.SDL_CreateWindow("Chip8", 500, 500, 0);
+    defer c.SDL_DestroyWindow(win);
+
+    const renderer = c.SDL_CreateRenderer(win, "renderer");
+    defer c.SDL_DestroyRenderer(renderer);
+    // const nsPs = 1_000_000_000;
     var cpu = CPU{};
     cpu.init();
-    print("memory: {any}", .{cpu.memory});
+    try mainLoop();
+
+    // print("memory: {any}", .{cpu.memory});
 }

@@ -20,15 +20,19 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    
+    exe.linkLibC();
+
     // Now declare the SDL dependency. The first parameter "sdl" is the name
     // under which zig fetch saved the dependency.
-    // const sdl_dep = b.dependency("sdl", .{
-    //     .target = target,
-    //     .optimize = optimize,
-    //     // You can optionally set .preferred_link_mode if needed:
-    //     // .preferred_link_mode = .static, // or .dynamic
-    // });
-
+    const sdl_dep = b.dependency("sdl", .{
+        .target = target,
+        .optimize = optimize,
+        // You can optionally set .preferred_link_mode if needed:
+        // .preferred_link_mode = .static, // or .dynamic
+    });
+    const sdl_lib = sdl_dep.artifact("SDL3");
+    exe.root_module.linkLibrary(sdl_lib);
     // // Retrieve the output artifact for the SDL library.
     // // According to the repository usage, the SDL library is built and exposes an artifact
     // // under the name "SDL3". (There is also one for tests, "SDL3_test".)
