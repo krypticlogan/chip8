@@ -1,4 +1,5 @@
 const std = @import("std");
+const allocator = std.heap.page_allocator;
 // const SDL = @import("sdl_lib");
 const c = @cImport({
     @cDefine("SDL_DISABLE_OLD_NAMES", {});
@@ -100,15 +101,22 @@ const CPU = struct {
         self.opcode = 0;
         self.drawFlag = false;
 
-        //Load fontset
+        // Load fontset
         for (0..FONTSET.len) |i| {
             self.memory[i] = FONTSET[i];
         }
     }
     ///Loads a chip-8 program to be executed
-    fn loadExe(self: *@This(), file: []u8) void {
-        for (0..file.len) |i| {
-            self.memory[i + 0x200] = file[i];
+    fn loadExe(self: *@This(), file_path: []const u8) !void {
+        const rom = try std.fs.cwd().openFile(file_path,.{});
+        defer rom.close();
+        const stats = try rom.stat();
+        const buf: []u8 = try rom.readToEndAlloc(allocator, stats.size);
+        print("Reading bytes...\n", .{});
+        for (0..buf.len) |i| {
+            const byte = buf[i];
+            self.memory[i + self.pc] = byte;
+            // print("0x{x} ", .{byte});
         }
     }
 
@@ -153,11 +161,11 @@ const CPU = struct {
             },
             0x6000 => { // 6XNN (set register VX)
                 const X = (self.opcode & 0x0F00) >> 8;
-                self.V[X] = @as(u8, self.opcode & 0x00FF);
+                self.V[X] = @truncate(self.opcode);
             },
             0x7000 => { // 7XNN (add value to register VX)
                 const X = (self.opcode & 0x0F00) >> 8;
-                self.V[X] += self.opcode & 0x00FF;
+                self.V[X] += @truncate(self.opcode);
             },
             0x8000 => {
                 switch (self.opcode & 0x000F) {
@@ -207,28 +215,32 @@ const CPU = struct {
                 return;
             },
             0xD000 => { // DXYN (display/draw)
+
                 const X = (self.opcode & 0x0F00) >> 8;
                 const Y = (self.opcode & 0x00F0) >> 4;
                 const height = self.opcode & 0x000F;
                 const xPos = self.V[X] % gfxWidth;
-                const yPos = self.V[Y] & gfxHeight;
+                const yPos = self.V[Y] % gfxHeight;
+                // print("pos: x-{d} y-{d}\n", .{xPos, yPos});
                 self.V[0xF] = 0;
                 for (0..height) |row| {
                     const spriteByte = self.memory[self.I + row];
                     for (0..8) |col| {
-                        const spritePixel = spriteByte & (0x80 >> col);
-                        const screenPixel = self.gfx[(yPos + row) * gfxWidth + (xPos + col)];
-                        if (spritePixel) {
+                        const shift: u16 = @as(u16, 0x80) >> @as(u3, @truncate(col));
+                        const spritePixel = spriteByte & shift;
+                        // const screenPixel = self.gfx[(yPos + row) * gfxWidth + (xPos + col)];
+                        if (spritePixel != 0) {
                             // Screen pixel also on - collision
-                            if (screenPixel == 1) {
+                            if (self.gfx[(yPos + row) * gfxWidth + (xPos + col)] == 1) {
                                 self.V[0xF] = 1;
                             }
 
                             // Effectively XOR with the sprite pixel
-                            screenPixel ^= 1;
+                            self.gfx[(yPos + row) * gfxWidth + (xPos + col)] ^= 1;
                         }
                     }
                 }
+                self.drawFlag = true;
             },
             0xE000 => {
                 switch (self.opcode & 0x000F) {
@@ -300,17 +312,14 @@ const CPU = struct {
     }
 };
 
-fn eventLoop() !void {
-    var running = true;
-    while (running) {
-        var event: c.SDL_Event = undefined;
-        while (c.SDL_PollEvent(&event)) {
-            switch (event.type) {
-                c.SDL_EVENT_QUIT => {
-                    running = false;
-                },
-                else => {},
-            }
+fn getEvents() !void {
+    var event: c.SDL_Event = undefined;
+    while (c.SDL_PollEvent(&event)) {
+        switch (event.type) {
+            c.SDL_EVENT_QUIT => {
+                running = false;
+            },
+            else => {},
         }
     }
 }
@@ -319,25 +328,79 @@ fn sleep(seconds: isize) void {
     std.time.sleep(seconds * nsPs);
 }
 
+var running = true;
 pub fn main() !void {
-    if (c.SDL_Init(c.SDL_INIT_VIDEO) == false) {
+    if (!c.SDL_Init(c.SDL_INIT_VIDEO)) {
         print("SDL_Init failed: {s}\n", .{c.SDL_GetError()});
         return error.InitializationFailed;
     }
     defer c.SDL_Quit();
-    const width = 64;
-    const height = 32;
-    const win = c.SDL_CreateWindow("Chip8", width * 10, height * 10, 0);
+    const cellSize = 10;
+    var win: ?*c.SDL_Window = null;
+    var renderer: ?*c.SDL_Renderer = null;
+    if (!c.SDL_CreateWindowAndRenderer("chip8", gfxWidth*cellSize, gfxHeight*cellSize, 0, &win, &renderer)) {
+        print("Failed to create window or renderer: {s}\n", .{c.SDL_GetError()});
+        return;
+    }
+    // const win = c.SDL_CreateWindow("Chip8", width * cellSize, height * cellSize, 0);
+    if (win == null) {
+        print("Failed to create window: {s}\n", .{c.SDL_GetError()});
+        return;
+    }
     defer c.SDL_DestroyWindow(win);
 
-    const renderer = c.SDL_CreateRenderer(win, "renderer");
+    // const renderer = c.SDL_CreateRenderer(win, "renderer");
+    if (renderer == null) {
+        print("Failed to create renderer: {s}\n", .{c.SDL_GetError()});
+        return;
+    }
     defer c.SDL_DestroyRenderer(renderer);
 
+    // const cell = c.SDL_Rect {.x =};
+    
     var cpu = CPU{};
     cpu.init();
+    const IBM = "roms/IBM_Logo.ch8";
+    const testRom = "roms/test_opcode.ch8";
+    _ = testRom;
+    // _ = IBM;
+    // try cpu.loadExe(testRom);
+    try cpu.loadExe(IBM);
+    print("memory: {any}", .{cpu.memory});
+    while(running) {
+        try cpu.cycle();
 
-    try cpu.cycle();
-    try eventLoop();
+        if(cpu.drawFlag) {
+            print("drawflag\n", .{});
+            //draw here
+            _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            _ = c.SDL_RenderClear(renderer);
+            _ = c.SDL_SetRenderDrawColor(renderer, 0, 255, 0,255);
+            var cell = c.SDL_FRect {};
+            for(0..gfxHeight) |y|{
+                for(0..gfxWidth) |x|{
+                    const i = x + y*64;
+                    cell.x = @floatFromInt(x * cellSize);
+                    cell.y = @floatFromInt(y * cellSize);
+                    cell.h = cellSize;
+                    cell.w = cellSize;
+                    print("{d}", .{cpu.gfx[i]});
+                    if(cpu.gfx[i] == 1){
+                       if (!c.SDL_RenderFillRect(renderer, &cell)) {
+                            print("SDL_RenderFillRect failed: {s}\n", .{c.SDL_GetError()});
+                            }
+                    }
+                }
+                print("\n", .{});
+            }
+            print("presenting render here", .{});
+            _ = c.SDL_RenderPresent(renderer);
+            print("done", .{});
+            cpu.drawFlag = false;
+        }
 
-    // print("memory: {any}", .{cpu.memory});
+        try getEvents();
+        //get key state
+        // cpu.setKeys();
+    }
 }
