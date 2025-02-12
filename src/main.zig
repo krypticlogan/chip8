@@ -366,12 +366,12 @@ pub fn main() !void {
     // _ = IBM;
     // try cpu.loadExe(testRom);
     try cpu.loadExe(IBM);
-    print("memory: {any}", .{cpu.memory});
+    // print("memory: {any}", .{cpu.memory});
     while(running) {
         try cpu.cycle();
 
         if(cpu.drawFlag) {
-            print("drawflag\n", .{});
+            // print("draw flag:\n", .{});
             //draw here
             _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
             _ = c.SDL_RenderClear(renderer);
@@ -384,18 +384,16 @@ pub fn main() !void {
                     cell.y = @floatFromInt(y * cellSize);
                     cell.h = cellSize;
                     cell.w = cellSize;
-                    print("{d}", .{cpu.gfx[i]});
+                    // print("{d}", .{cpu.gfx[i]}); // debug pixel output
                     if(cpu.gfx[i] == 1){
                        if (!c.SDL_RenderFillRect(renderer, &cell)) {
                             print("SDL_RenderFillRect failed: {s}\n", .{c.SDL_GetError()});
                             }
                     }
                 }
-                print("\n", .{});
+                // print("\n", .{});
             }
-            print("presenting render here", .{});
             _ = c.SDL_RenderPresent(renderer);
-            print("done", .{});
             cpu.drawFlag = false;
         }
 
