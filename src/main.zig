@@ -54,6 +54,7 @@ fn init0u2Array(array: []u2) void {
 }
 const gfxHeight = 32;
 const gfxWidth = 64;
+const cellSize = 10;
 ///defines a chip-8 cpu made of all its components
 const CPU = struct {
     ///current instruction
@@ -335,43 +336,37 @@ pub fn main() !void {
         return error.InitializationFailed;
     }
     defer c.SDL_Quit();
-    const cellSize = 10;
+    
     var win: ?*c.SDL_Window = null;
     var renderer: ?*c.SDL_Renderer = null;
     if (!c.SDL_CreateWindowAndRenderer("chip8", gfxWidth*cellSize, gfxHeight*cellSize, 0, &win, &renderer)) {
         print("Failed to create window or renderer: {s}\n", .{c.SDL_GetError()});
         return;
     }
-    // const win = c.SDL_CreateWindow("Chip8", width * cellSize, height * cellSize, 0);
     if (win == null) {
         print("Failed to create window: {s}\n", .{c.SDL_GetError()});
         return;
     }
     defer c.SDL_DestroyWindow(win);
-
-    // const renderer = c.SDL_CreateRenderer(win, "renderer");
     if (renderer == null) {
         print("Failed to create renderer: {s}\n", .{c.SDL_GetError()});
         return;
     }
     defer c.SDL_DestroyRenderer(renderer);
 
-    // const cell = c.SDL_Rect {.x =};
-    
-    var cpu = CPU{};
-    cpu.init();
     const IBM = "roms/IBM_Logo.ch8";
     const testRom = "roms/test_opcode.ch8";
     _ = testRom;
     // _ = IBM;
+    var cpu = CPU{};
+    cpu.init();
+    
     // try cpu.loadExe(testRom);
     try cpu.loadExe(IBM);
     // print("memory: {any}", .{cpu.memory});
     while(running) {
         try cpu.cycle();
-
         if(cpu.drawFlag) {
-            // print("draw flag:\n", .{});
             //draw here
             _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
             _ = c.SDL_RenderClear(renderer);
