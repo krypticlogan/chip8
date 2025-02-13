@@ -52,6 +52,15 @@ fn init0u2Array(array: []u2) void {
         array[i] = 0;
     }
 }
+
+const keymap = [_]struct{c_uint, u4}{
+        .{c.SDLK_1, 0x1}, .{c.SDLK_2, 0x2}, .{c.SDLK_3, 0x3}, .{c.SDLK_4, 0xC},
+        .{c.SDLK_Q, 0x4}, .{c.SDLK_W, 0x5}, .{c.SDLK_E, 0x6}, .{c.SDLK_R, 0xD},
+        .{c.SDLK_A, 0x7}, .{c.SDLK_S, 0x8}, .{c.SDLK_D, 0x9}, .{c.SDLK_F, 0xE},
+        .{c.SDLK_Z, 0xA}, .{c.SDLK_X, 0x0}, .{c.SDLK_C, 0xB}, .{c.SDLK_V, 0xF}
+    };
+
+
 const gfxHeight = 32;
 const gfxWidth = 64;
 const cellSize = 10;
@@ -78,6 +87,8 @@ const CPU = struct {
     ///stack pointer
     sp: u5 = undefined,
     drawFlag: bool = false,
+    
+    key: [16]bool = undefined,
 
     // 0x000-0x1FF - Chip 8 interpreter (contains font set in emu)
     // 0x050-0x0A0 - Used for the built in 4x5 pixel font set (0-F)
@@ -94,6 +105,7 @@ const CPU = struct {
         init0u2Array(&self.gfx);
         @memset(&self.stack, 0);
         @memset(&self.gfx, 0);
+        @memset(&self.key, false);
 
         //reset values
         self.pc = 0x200;
@@ -101,7 +113,7 @@ const CPU = struct {
         self.sp = 0;
         self.opcode = 0;
         self.drawFlag = false;
-
+        
         // Load fontset
         for (0..FONTSET.len) |i| {
             self.memory[i] = FONTSET[i];
@@ -152,13 +164,23 @@ const CPU = struct {
                 self.pc = self.opcode & 0x0FFF;
             },
             0x3000 => { // 3XNN (if Vx == NN) skip next instruction
-                return;
+                const x = (self.opcode & 0x0F00) >> 8;
+                if (self.V[x] == @as(u8, @truncate(self.opcode))){
+                    self.pc+=2;
+                }
             },
             0x4000 => { // 4XNN (if Vx != NN) skip next instruction
-                return;
+                const x = (self.opcode & 0x0F00) >> 8;
+                if (self.V[x] != @as(u8, @truncate(self.opcode))){
+                    self.pc+=2;
+                }
             },
-            0x5000 => { // (if Vx == Vy) skip next instruction
-                return;
+            0x5000 => { // 5XY0 (if Vx == Vy) skip next instruction
+               const x = (self.opcode & 0x0F00) >> 8;
+               const y = (self.opcode & 0x00F0) >> 4;
+                if (self.V[x] == self.V[y]){
+                    self.pc+=2;
+                }
             },
             0x6000 => { // 6XNN (set register VX)
                 const X = (self.opcode & 0x0F00) >> 8;
@@ -171,31 +193,57 @@ const CPU = struct {
             0x8000 => {
                 switch (self.opcode & 0x000F) {
                     0x0000 => { // 8XY0 (sets the value of Vx to the value of Vy)
-                        return;
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        const y = (self.opcode & 0x00F0) >> 4;
+                        self.V[x] = self.V[y];
                     },
                     0x0001 => { // 8XY1 (Sets VX to VX or VY. (bitwise OR operation))
-                        return;
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        const y = (self.opcode & 0x00F0) >> 4;
+                        self.V[x] |= self.V[y];
                     },
                     0x0002 => { // 8XY2 (Sets VX to VX and VY. (bitwise AND operation))
-                        return;
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        const y = (self.opcode & 0x00F0) >> 4;
+                        self.V[x] &= self.V[y];
                     },
                     0x0003 => { // 8XY3 (Sets VX to VX xor VY)
-                        return;
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        const y = (self.opcode & 0x00F0) >> 4;
+                        self.V[x] ^= self.V[y];
                     },
-                    0x0004 => { // 8XY4 (Sets VX to VX xor VY)
-                        return;
+                    0x0004 => { // 8XY4 (Sets VX to VX + VY)
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        const y = (self.opcode & 0x00F0) >> 4;
+                        if (self.V[x] + self.V[y] > 255) {
+                            self.V[x] = 0;
+                            self.V[0xF] = 1;
+                        }
+                        else self.V[x] += self.V[y];
                     },
-                    0x0005 => { // 8XY5 (Sets VX to VX xor VY)
-                        return;
+                    0x0005 => { // 8XY5 (Sets VX to VX - VY)
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        const y = (self.opcode & 0x00F0) >> 4;
+                        if(self.V[x] > self.V[y]) // carry flag is set if the first operand is larger
+                            self.V[0xF] = 1;
+                        self.V[x] -= self.V[y];
                     },
-                    0x0006 => { // 8XY6 (Sets VX to VX xor VY)
-                        return;
+                    0x0006 => { // 8XY6 Shifts VX to the right by 1, then stores the least significant bit of VX prior to the shift into VF)
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        self.V[0xF] = @as(u1, @truncate(x));
+                        self.V[x] = self.V[x] >> 1;
                     },
-                    0x0007 => { // 8XY7 (Sets VX to VX xor VY)
-                        return;
+                    0x0007 => { // 8XY7 (Sets VX to VY - VX)
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        const y = (self.opcode & 0x00F0) >> 4;
+                        if(self.V[y] > self.V[x])
+                            self.V[0xF] = 1;
+                        self.V[x] = self.V[y] - self.V[x];
                     },
-                    0x000E => { // 8XYE (Sets VX to VX xor VY)
-                        return;
+                    0x000E => { // 8XYE Shifts VX to the left by 1, then sets VF to 1 if the most significant bit of VX prior to that shift was set, or to 0 if it was unset.
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        self.V[0xF] = @as(u8, @truncate(x >> 3));
+                        self.V[x] = self.V[x] << 1;
                     },
                     else => {
                         print("Opcode 0x8___: 0x{x} not handled", .{self.opcode});
@@ -204,16 +252,27 @@ const CPU = struct {
                 }
             },
             0x9000 => { //9XY0 if (Vx != Vy)	Skips the next instruction if VX does not equal VY. (Usually the next instruction is a jump to skip a code block)
-
+                const x = (self.opcode & 0x0F00) >> 8;
+                const y = (self.opcode & 0x00F0) >> 4;
+                if (self.V[x] != self.V[y]){
+                    self.pc+=2;
+                }
             },
             0xA000 => { // ANNN Sets the I address to NNN
                 self.I = self.opcode & 0x0FFF;
             },
             0xB000 => { //BNNN PC = V0 + NNN	Jumps to the address NNN plus V0
-                return;
+               self.pc = (self.opcode & 0x0FFF) + self.V[0];
             },
-            0xC000 => { //CNNN Vx = rand() & NN	Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN
-                return;
+            0xC000 => { //CXNN Vx = rand() & NN	Sets VX to the result of a bitwise and operation on a random number (Typically: 0 to 255) and NN
+                const x = (self.opcode & 0x0F00) >> 8;
+                 var prng = std.rand.DefaultPrng.init(blk: {
+                    var seed: u64 = undefined;
+                    try std.posix.getrandom(std.mem.asBytes(&seed));
+                    break :blk seed;
+                });
+                const rand = prng.random();
+                self.V[x] &= rand.intRangeAtMost((u8), 0, 255);
             },
             0xD000 => { // DXYN (display/draw)
 
@@ -246,7 +305,10 @@ const CPU = struct {
             0xE000 => {
                 switch (self.opcode & 0x000F) {
                     0x0001 => { // EXA1 if (key() != Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is not pressed (usually the next instruction is a jump to skip a code block)
-
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        if(!self.key[self.V[x]]) {
+                            self.pc+=2;
+                        }
                     },
                     0x000E => { // EX9E if (key() == Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is pressed (usually the next instruction is a jump to skip a code block)
                     },
@@ -313,10 +375,38 @@ const CPU = struct {
     }
 };
 
-fn getEvents() !void {
+fn getKeymap(keyRead: c_uint) isize {
+    for (0..16) |i| {
+        const mapping = keymap[@as(u4, @truncate(i))];
+        const key = mapping[0];
+        const value = mapping[1];
+        if (key == keyRead) {
+            return @as(isize, value);
+        }
+    }
+    return -1;
+}
+fn getEvents(cpuPtr: *CPU) !void {
+    var cpu = cpuPtr.*;
     var event: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&event)) {
         switch (event.type) {
+            c.SDL_EVENT_KEY_DOWN => {
+              const keycode = event.key.key;
+              const mapping = getKeymap(keycode);
+              print("Down: key: {d}, mapping: {d}\n", .{keycode, mapping});
+              if(mapping > 0) {
+                cpu.key[@intCast(mapping)] = true;
+              }
+            },
+            c.SDL_EVENT_KEY_UP => {
+              const keycode = event.key.key;
+              const mapping = getKeymap(keycode);
+              print("Up: key: {d}, mapping: {d}\n", .{keycode, mapping});
+              if(mapping > 0) {
+                cpu.key[@intCast(mapping)] = false;
+              }
+            },
             c.SDL_EVENT_QUIT => {
                 running = false;
             },
@@ -360,10 +450,11 @@ pub fn main() !void {
     // _ = IBM;
     var cpu = CPU{};
     cpu.init();
-    
     // try cpu.loadExe(testRom);
     try cpu.loadExe(IBM);
-    // print("memory: {any}", .{cpu.memory});
+    for (0..16) |i| {
+        print("{any}\n",.{keymap[@as(u4, @truncate(i))]});
+    }
     while(running) {
         try cpu.cycle();
         if(cpu.drawFlag) {
@@ -391,9 +482,7 @@ pub fn main() !void {
             _ = c.SDL_RenderPresent(renderer);
             cpu.drawFlag = false;
         }
-
-        try getEvents();
-        //get key state
-        // cpu.setKeys();
+        //key state
+        try getEvents(&cpu);
     }
 }
