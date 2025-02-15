@@ -182,7 +182,7 @@ const CPU = struct {
             },
             0x7000 => { // 7XNN (add value to register VX)
                 const x = (self.opcode & 0x0F00) >> 8;
-                print("V[x] {d} + NN {d}\n", .{ self.V[x], @as(u8, @truncate(self.opcode)) });
+                print("V[x] {d} + NN {d}\n", .{self.V[x], @as(u8, @truncate(self.opcode))});
                 const result = @addWithOverflow(self.V[x], @as(u8, @truncate(self.opcode)));
                 self.V[x] = result[0];
             },
@@ -211,20 +211,20 @@ const CPU = struct {
                     0x0004 => { // 8XY4 (Sets VX to VX + VY)
                         const x = (self.opcode & 0x0F00) >> 8;
                         const y = (self.opcode & 0x00F0) >> 4;
-                        print("Vx {d} + Vy {d}\n", .{ self.V[x], self.V[y] });
+                        print("Vx {d} + Vy {d}\n", .{self.V[x], self.V[y]});
                         const result = @addWithOverflow(self.V[x], self.V[y]);
                         self.V[x] = result[0];
                         self.V[0xF] = result[1];
-                        print("= {d} : carry {d}\n", .{ self.V[x], self.V[0xF] });
+                        print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
                     },
                     0x0005 => { // 8XY5 (Sets VX to VX - VY)
                         const x = (self.opcode & 0x0F00) >> 8;
                         const y = (self.opcode & 0x00F0) >> 4;
-                        print("V[x] {d} - V[y] {d}\n", .{ self.V[x], self.V[y] });
+                        print("V[x] {d} - V[y] {d}\n", .{self.V[x], self.V[y]});
                         const result = @subWithOverflow(self.V[x], self.V[y]);
                         self.V[x] = result[0];
-                        self.V[0xF] = result[1] ^ 1;
-                        print("= {d} : carry {d}\n", .{ self.V[x], self.V[0xF] });
+                        self.V[0xF] = result[1] ^ 1; 
+                        print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
                     },
                     0x0006 => { // 8XY6 Shifts VX to the right by 1, then stores the least significant bit of VX prior to the shift into VF)
                         const x = (self.opcode & 0x0F00) >> 8;
@@ -235,11 +235,11 @@ const CPU = struct {
                     0x0007 => { // 8XY7 (Sets VX to VY - VX)
                         const x = (self.opcode & 0x0F00) >> 8;
                         const y = (self.opcode & 0x00F0) >> 4;
-                        print("V[y] {d} - V[x] {d}\n", .{ self.V[y], self.V[x] });
+                        print("V[y] {d} - V[x] {d}\n", .{self.V[y], self.V[x]});
                         const result = @subWithOverflow(self.V[y], self.V[x]);
                         self.V[x] = result[0];
-                        self.V[0xF] = result[1] ^ 1;
-                        print("= {d} : carry {d}\n", .{ self.V[x], self.V[0xF] });
+                        self.V[0xF] = result[1] ^ 1; 
+                        print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
                     },
                     0x000E => { // 8XYE Shifts VX to the left by 1, then sets VF to 1 if the most significant bit of VX prior to that shift was set, or to 0 if it was unset.
                         const x = (self.opcode & 0x0F00) >> 8;
@@ -313,9 +313,9 @@ const CPU = struct {
                             print("skipped not pressed", .{});
                             self.pc += 2;
                         } else {
-                            print("{any}", .{self.key[@as(u4, @truncate(self.V[x]))]});
+                            print("{any}", .{self.key[@as(u4, @truncate(self.V[x]))]}); 
                             return error.KeyNotPressedError;
-                        }
+                            }
                     },
                     0x000E => { // EX9E if (key() == Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is pressed (usually the next instruction is a jump to skip a code block)
                         const x = (self.opcode & 0x0F00) >> 8;
@@ -323,9 +323,9 @@ const CPU = struct {
                             print("skipped pressed", .{});
                             self.pc += 2;
                         } else {
-                            print("{any}", .{self.key[@as(u4, @truncate(self.V[x]))]});
+                            print("{any}", .{self.key[@as(u4, @truncate(self.V[x]))]}); 
                             return error.KeyPressedError;
-                        }
+                            }
                     },
                     else => {
                         print("Opcode 0xE___: 0x{x} not handled", .{self.opcode});
@@ -343,12 +343,12 @@ const CPU = struct {
                         const x = (self.opcode & 0xF00) >> 8;
                         var found = false;
                         for (self.key, 0..) |k, i| {
-                            if (k) {
+                            if (k){
                                 found = true;
                                 self.V[x] = @intCast(i);
                                 break;
                             }
-                        }
+                        } 
                         if (!found) {
                             self.pc -= 2;
                         }
@@ -367,30 +367,30 @@ const CPU = struct {
                     },
                     0x0029 => { // FX29 Sets I to the location of the sprite for the character in VX(only consider the lowest nibble). Characters 0-F (in hexadecimal) are represented by a 4x5 font
                         const x = (self.opcode & 0xF00) >> 8;
-                        self.I = self.memory[@as(u8, @truncate(self.V[x])) * 5];
+                        self.I = self.memory[ @as(u8, @truncate(self.V[x]))*5];
                     },
                     0x0033 => { // FX33 Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2
                         const x = (self.opcode & 0xF00) >> 8;
-                        print("V[x]: {d}, I: 0x{X}\t", .{ self.V[x], self.I });
+                        print("V[x]: {d}, I: 0x{X}\t", .{self.V[x], self.I});     
                         self.memory[self.I] = self.V[x] / 100;
                         self.memory[self.I + 1] = (self.V[x] / 10) % 10;
                         self.memory[self.I + 2] = self.V[x] % 10;
-                        print(" {d}{d}{d}\n", .{ self.memory[self.I], self.memory[self.I + 1], self.memory[self.I + 2] });
+                        print(" {d}{d}{d}\n", .{self.memory[self.I], self.memory[self.I+1], self.memory[self.I+2]});
                     },
                     0x0055 => { // Stores from V0 to VX (including VX) in memory, starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified
                         const x = (self.opcode & 0xF00) >> 8;
                         var i: u4 = 0;
-                        while (i <= x) {
+                        while(i <= x) {
                             self.memory[self.I + i] = self.V[i];
-                            i += 1;
+                            i+=1;
                         }
                     },
                     0x0065 => { // FX65 Fills from V0 to VX (including VX) with values from memory, starting at address I. The offset from I is increased by 1 for each value read, but I itself is left unmodified.
                         const x = (self.opcode & 0xF00) >> 8;
                         var i: u4 = 0;
-                        while (i <= x) {
+                        while(i <= x) {
                             self.V[i] = self.memory[self.I + i];
-                            i += 1;
+                            i+=1;
                         }
                     },
                     else => {
@@ -508,7 +508,7 @@ pub fn main() !void {
     const nsPs = 1_000_000_000;
     // const cycleDelay: u64=  cyclesPerSecond;
 
-    while (running) {
+    while (running) {        
         try cpu.cycle();
         if (cpu.drawFlag) {
             //draw here
@@ -535,7 +535,7 @@ pub fn main() !void {
             _ = c.SDL_RenderPresent(renderer);
             cpu.drawFlag = false;
         }
-        // const frameTime = c.SDL_GetTicksNS() - startTime;
+        // const frameTime = c.SDL_GetTicksNS() - startTime; 
         //key state
         try getEvents(&cpu);
         std.time.sleep(nsPs / cyclesPerSecond);
