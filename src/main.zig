@@ -481,13 +481,17 @@ pub fn main() !void {
         return;
     }
     defer c.SDL_DestroyRenderer(renderer);
-
     const IBM = "roms/IBM_Logo.ch8";
     const testRom = "roms/test_opcode.ch8";
     const BC = "roms/BC_test.ch8";
     const flags = "roms/4-flags.ch8";
     const logo2 = "roms/2-ibm-logo.ch8";
     const betterTest = "roms/3-corax+.ch8";
+    const keypad = "roms/6-keypad.ch8";
+    const game = "roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
+
+    // _ = keypad;
+    _ = game;
     _ = betterTest;
     _ = testRom;
     _ = IBM;
@@ -495,10 +499,10 @@ pub fn main() !void {
     _ = BC;
     _ = flags;
 
-    const game = "roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
+    
     var cpu = CPU{};
     cpu.init();
-    try cpu.loadExe(game); // load roms here
+    try cpu.loadExe(keypad) // load exe here
     // try cpu.loadExe(IBM);
     // for (0..16) |i| {
     //     print("{any}\n", .{keymap[@as(u4, @truncate(i))]});
