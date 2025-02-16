@@ -519,8 +519,8 @@ pub fn main() !void {
     const keypad = "roms/6-keypad.ch8";
     const game = "roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
 
-    // _ = keypad;
-    _ = game;
+    _ = keypad;
+    // _ = game;
     _ = betterTest;
     _ = testRom;
     _ = IBM;
@@ -531,7 +531,7 @@ pub fn main() !void {
     
     var cpu = CPU{};
     cpu.init();
-    try cpu.loadExe(keypad); // load exe here
+    try cpu.loadExe(game); // load exe here
     // try cpu.loadExe(IBM);
     // for (0..16) |i| {
     //     print("{any}\n", .{keymap[@as(u4, @truncate(i))]});
@@ -539,7 +539,7 @@ pub fn main() !void {
     // running = false;
     
     const nsPs = 1_000_000_000;
-    const cyclesPerNS: u64 = 700 * nsPs;
+    const cyclesPerNS: u64 = 700 * 60 / nsPs;
     var lastTime: i128 = 0; // Store the time of the last frame
     // const cycleDelay: u64=  cyclesPerSecond;
 
@@ -580,9 +580,9 @@ pub fn main() !void {
         lastTime = currentTime;  // Update the lastTime
 
         // Sleep only if we've already done everything needed for the frame
-        if (frameDelta < nsPs / cyclesPerNS) {
+        if (frameDelta < cyclesPerNS) {
             // Sleep for the remaining time
-            std.time.sleep(@intCast(nsPs / cyclesPerNS - frameDelta));
+            std.time.sleep(@intCast(cyclesPerNS - frameDelta));
         }
     }
 }
