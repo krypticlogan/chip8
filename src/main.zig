@@ -53,7 +53,11 @@ fn init0u2Array(array: []u2) void {
     }
 }
 
-const keymap = [_]struct { c_uint, u4 }{ .{ c.SDLK_1, 0x1 }, .{ c.SDLK_2, 0x2 }, .{ c.SDLK_3, 0x3 }, .{ c.SDLK_4, 0xC }, .{ c.SDLK_Q, 0x4 }, .{ c.SDLK_W, 0x5 }, .{ c.SDLK_E, 0x6 }, .{ c.SDLK_R, 0xD }, .{ c.SDLK_A, 0x7 }, .{ c.SDLK_S, 0x8 }, .{ c.SDLK_D, 0x9 }, .{ c.SDLK_F, 0xE }, .{ c.SDLK_Z, 0xA }, .{ c.SDLK_X, 0x0 }, .{ c.SDLK_C, 0xB }, .{ c.SDLK_V, 0xF } };
+const keymap = [_]struct {c_uint, u4, *const [1:0]u8}{
+    .{ c.SDLK_1, 0x1, "1"}, .{ c.SDLK_2, 0x2, "2" }, .{ c.SDLK_3, 0x3, "3" }, .{ c.SDLK_4, 0xC, "4" }, 
+    .{c.SDLK_Q, 0x4, "Q"}, .{ c.SDLK_W, 0x5, "w"}, .{ c.SDLK_E, 0x6, "e"}, .{ c.SDLK_R, 0xD, "r"}, 
+    .{ c.SDLK_A, 0x7, "a"}, .{ c.SDLK_S, 0x8, "s" }, .{ c.SDLK_D, 0x9, "d"}, .{ c.SDLK_F, 0xE, "f"}, 
+    .{ c.SDLK_Z, 0xA, "z" }, .{ c.SDLK_X, 0x0, "x"}, .{ c.SDLK_C, 0xB, "c" }, .{ c.SDLK_V, 0xF, "v"} };
 
 const gfxHeight = 32;
 const gfxWidth = 64;
@@ -182,7 +186,7 @@ const CPU = struct {
             },
             0x7000 => { // 7XNN (add value to register VX)
                 const x = (self.opcode & 0x0F00) >> 8;
-                print("V[x] {d} + NN {d}\n", .{self.V[x], @as(u8, @truncate(self.opcode))});
+                // print("V[x] {d} + NN {d}\n", .{self.V[x], @as(u8, @truncate(self.opcode))});
                 const result = @addWithOverflow(self.V[x], @as(u8, @truncate(self.opcode)));
                 self.V[x] = result[0];
             },
@@ -211,20 +215,20 @@ const CPU = struct {
                     0x0004 => { // 8XY4 (Sets VX to VX + VY)
                         const x = (self.opcode & 0x0F00) >> 8;
                         const y = (self.opcode & 0x00F0) >> 4;
-                        print("Vx {d} + Vy {d}\n", .{self.V[x], self.V[y]});
+                        // print("Vx {d} + Vy {d}\n", .{self.V[x], self.V[y]});
                         const result = @addWithOverflow(self.V[x], self.V[y]);
                         self.V[x] = result[0];
                         self.V[0xF] = result[1];
-                        print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
+                        // print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
                     },
                     0x0005 => { // 8XY5 (Sets VX to VX - VY)
                         const x = (self.opcode & 0x0F00) >> 8;
                         const y = (self.opcode & 0x00F0) >> 4;
-                        print("V[x] {d} - V[y] {d}\n", .{self.V[x], self.V[y]});
+                        // print("V[x] {d} - V[y] {d}\n", .{self.V[x], self.V[y]});
                         const result = @subWithOverflow(self.V[x], self.V[y]);
                         self.V[x] = result[0];
                         self.V[0xF] = result[1] ^ 1; 
-                        print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
+                        // print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
                     },
                     0x0006 => { // 8XY6 Shifts VX to the right by 1, then stores the least significant bit of VX prior to the shift into VF)
                         const x = (self.opcode & 0x0F00) >> 8;
@@ -235,11 +239,11 @@ const CPU = struct {
                     0x0007 => { // 8XY7 (Sets VX to VY - VX)
                         const x = (self.opcode & 0x0F00) >> 8;
                         const y = (self.opcode & 0x00F0) >> 4;
-                        print("V[y] {d} - V[x] {d}\n", .{self.V[y], self.V[x]});
+                        // print("V[y] {d} - V[x] {d}\n", .{self.V[y], self.V[x]});
                         const result = @subWithOverflow(self.V[y], self.V[x]);
                         self.V[x] = result[0];
                         self.V[0xF] = result[1] ^ 1; 
-                        print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
+                        // print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
                     },
                     0x000E => { // 8XYE Shifts VX to the left by 1, then sets VF to 1 if the most significant bit of VX prior to that shift was set, or to 0 if it was unset.
                         const x = (self.opcode & 0x0F00) >> 8;
@@ -308,27 +312,27 @@ const CPU = struct {
             0xE000 => {
                 switch (self.opcode & 0x000F) {
                     0x0001 => { // EXA1 if (key() != Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is not pressed (usually the next instruction is a jump to skip a code block)
-                        const x = (self.opcode & 0x0F00) >> 8;
+                        const x = (self.opcode & 0x0F00) >> 8; 
                         if (!self.key[@as(u4, @truncate(self.V[x]))]) {
-                            print("skipped not pressed", .{});
+                            print("skipped not pressed, val : {any}\n", .{@as(u4, @truncate(self.V[x]))});
                             self.pc += 2;
                         } else {
-                            print("{any}", .{self.key[@as(u4, @truncate(self.V[x]))]}); 
-                            return error.KeyNotPressedError;
+                            print("key : {s}, {any} pressed\n", .{((getCharFromKeycode(@as(u4, @truncate(self.V[x]))))), @as(u4, @truncate(self.V[x]))}); 
                             }
+                        print("value of key in Vx {any}\n", .{self.key[@as(u4, @truncate(self.V[x]))]});
                     },
                     0x000E => { // EX9E if (key() == Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is pressed (usually the next instruction is a jump to skip a code block)
                         const x = (self.opcode & 0x0F00) >> 8;
                         if (self.key[@as(u4, @truncate(self.V[x]))]) {
-                            print("skipped pressed", .{});
+                            print("skipped pressed, val : {any}\n", .{@as(u4, @truncate(self.V[x]))});
                             self.pc += 2;
                         } else {
-                            print("{any}", .{self.key[@as(u4, @truncate(self.V[x]))]}); 
-                            return error.KeyPressedError;
+                            print("key : {s}, {any} not pressed\n", .{((getCharFromKeycode(@as(u4, @truncate(self.V[x]))))), @as(u4, @truncate(self.V[x]))}); 
                             }
+                        print("value of key in Vx {any}\n", .{self.key[@as(u4, @truncate(self.V[x]))]});
                     },
                     else => {
-                        print("Opcode 0xE___: 0x{x} not handled", .{self.opcode});
+                        print("Opcode 0xE___: 0x{x} not handled\n", .{self.opcode});
                         return error.OpcodeNotDecoded;
                     },
                 }
@@ -379,7 +383,7 @@ const CPU = struct {
                     },
                     0x0055 => { // Stores from V0 to VX (including VX) in memory, starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified
                         const x = (self.opcode & 0xF00) >> 8;
-                        var i: u4 = 0;
+                        var i: u5 = 0;
                         while(i <= x) {
                             self.memory[self.I + i] = self.V[i];
                             i+=1;
@@ -387,8 +391,9 @@ const CPU = struct {
                     },
                     0x0065 => { // FX65 Fills from V0 to VX (including VX) with values from memory, starting at address I. The offset from I is increased by 1 for each value read, but I itself is left unmodified.
                         const x = (self.opcode & 0xF00) >> 8;
-                        var i: u4 = 0;
+                        var i: u5 = 0;
                         while(i <= x) {
+                            print("int overflow? {d}\n", .{i});
                             self.V[i] = self.memory[self.I + i];
                             i+=1;
                         }
@@ -415,7 +420,7 @@ const CPU = struct {
     }
 };
 
-fn getKeymap(keycode: c_uint) isize {
+fn getKeyvalueFromKeycode(keycode: c_uint) isize {
     for (0..16) |i| {
         const mapping = keymap[@as(u4, @truncate(i))];
         const key = mapping[0];
@@ -424,30 +429,54 @@ fn getKeymap(keycode: c_uint) isize {
             return @as(isize, value);
         }
     }
-    return -1;
+    return 16;
 }
-fn getEvents(cpuPtr: *CPU) !void {
-    var cpu = cpuPtr.*;
+
+fn getCharFromKeycode(keyvalue: c_uint) *const [1:0]u8 {
+     for (0..16) |i| {
+        const mapping = keymap[@as(u4, @truncate(i))];
+        const key = mapping[1];
+        const char = mapping[2];
+        if (key == keyvalue) {
+            return char;
+        }
+    }
+    return " ";
+}
+
+fn getKeycodeFromKeyvalue(keyvalue: u4) c_uint {
+    for (0..16) |i| {
+        const mapping = keymap[@as(u4, @truncate(i))];
+        const key = mapping[0];
+        const value = mapping[1];
+        if (value == keyvalue) {
+            return key;
+        }
+    }
+    return 16;
+}
+fn getEvents(cpu: *CPU) !void {
+    // var cpu = cpuPtr.*;
     var event: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&event)) {
         switch (event.type) {
             c.SDL_EVENT_KEY_DOWN => {
                 const keycode = event.key.key;
-                const mapping = getKeymap(keycode);
+                const mapping = getKeyvalueFromKeycode(keycode);
                 print("Down: key: {d}, mapping: {d}\n", .{ keycode, mapping });
-                if (mapping >= 0) {
+                if (mapping < 16) {
                     cpu.key[@intCast(mapping)] = true;
                 }
-                print("keymap\n---------------\n{any}", .{cpu.key});
+                print("keymap | {any}\n", .{cpu.key}); //true here
             },
             c.SDL_EVENT_KEY_UP => {
                 const keycode = event.key.key;
-                const mapping = getKeymap(keycode);
+                const mapping = getKeyvalueFromKeycode(keycode);
                 print("Up: key: {d}, mapping: {d}\n", .{ keycode, mapping });
-                if (mapping >= 0) {
+                if (mapping < 16) {
                     cpu.key[@intCast(mapping)] = false;
                 }
-                print("keymap\n---------------\n{any}", .{cpu.key});
+                print("keymap | {any}\n", .{cpu.key});
             },
             c.SDL_EVENT_QUIT => {
                 running = false;
@@ -502,18 +531,27 @@ pub fn main() !void {
     
     var cpu = CPU{};
     cpu.init();
-    try cpu.loadExe(keypad) // load exe here
+    try cpu.loadExe(keypad); // load exe here
     // try cpu.loadExe(IBM);
     // for (0..16) |i| {
     //     print("{any}\n", .{keymap[@as(u4, @truncate(i))]});
     // }
     // running = false;
-    const cyclesPerSecond: u64 = 7000 / 60;
+    
     const nsPs = 1_000_000_000;
+    const cyclesPerNS: u64 = 700 * nsPs;
+    var lastTime: i128 = 0; // Store the time of the last frame
     // const cycleDelay: u64=  cyclesPerSecond;
 
-    while (running) {        
+    while (running) {    
+        const currentTime = std.time.nanoTimestamp();
+        const frameDelta = currentTime - lastTime;
+
+        // Poll for events in a non-blocking way
+        try getEvents(&cpu);    
         try cpu.cycle();
+        // @memset(&cpu.key, false);
+        // print("keymap | {any}\n", .{cpu.key}); // all false here
         if (cpu.drawFlag) {
             //draw here
             _ = c.SDL_SetRenderDrawColor(renderer, 50, 0, 175, 10);
@@ -527,21 +565,24 @@ pub fn main() !void {
                     cell.y = @floatFromInt(y * cellSize);
                     cell.h = cellSize;
                     cell.w = cellSize;
-                    // print("{d}", .{cpu.gfx[i]}); // debug pixel output
                     if (cpu.gfx[i] == 1) {
                         if (!c.SDL_RenderFillRect(renderer, &cell)) {
                             print("SDL_RenderFillRect failed: {s}\n", .{c.SDL_GetError()});
                         }
                     }
                 }
-                // print("\n", .{});
             }
             _ = c.SDL_RenderPresent(renderer);
             cpu.drawFlag = false;
         }
-        // const frameTime = c.SDL_GetTicksNS() - startTime; 
-        //key state
-        try getEvents(&cpu);
-        std.time.sleep(nsPs / cyclesPerSecond);
+       // Frame rate control logic (ensuring a consistent FPS)
+        // Frame rate control logic (ensuring a consistent FPS)
+        lastTime = currentTime;  // Update the lastTime
+
+        // Sleep only if we've already done everything needed for the frame
+        if (frameDelta < nsPs / cyclesPerNS) {
+            // Sleep for the remaining time
+            std.time.sleep(@intCast(nsPs / cyclesPerNS - frameDelta));
+        }
     }
 }
