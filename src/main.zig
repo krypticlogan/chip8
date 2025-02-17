@@ -53,11 +53,7 @@ fn init0u2Array(array: []u2) void {
     }
 }
 
-const keymap = [_]struct {c_uint, u4, *const [1:0]u8}{
-    .{ c.SDLK_1, 0x1, "1"}, .{ c.SDLK_2, 0x2, "2" }, .{ c.SDLK_3, 0x3, "3" }, .{ c.SDLK_4, 0xC, "4" }, 
-    .{c.SDLK_Q, 0x4, "Q"}, .{ c.SDLK_W, 0x5, "w"}, .{ c.SDLK_E, 0x6, "e"}, .{ c.SDLK_R, 0xD, "r"}, 
-    .{ c.SDLK_A, 0x7, "a"}, .{ c.SDLK_S, 0x8, "s" }, .{ c.SDLK_D, 0x9, "d"}, .{ c.SDLK_F, 0xE, "f"}, 
-    .{ c.SDLK_Z, 0xA, "z" }, .{ c.SDLK_X, 0x0, "x"}, .{ c.SDLK_C, 0xB, "c" }, .{ c.SDLK_V, 0xF, "v"} };
+const keymap = [_]struct { c_uint, u4, *const [1:0]u8 }{ .{ c.SDLK_1, 0x1, "1" }, .{ c.SDLK_2, 0x2, "2" }, .{ c.SDLK_3, 0x3, "3" }, .{ c.SDLK_4, 0xC, "4" }, .{ c.SDLK_Q, 0x4, "Q" }, .{ c.SDLK_W, 0x5, "w" }, .{ c.SDLK_E, 0x6, "e" }, .{ c.SDLK_R, 0xD, "r" }, .{ c.SDLK_A, 0x7, "a" }, .{ c.SDLK_S, 0x8, "s" }, .{ c.SDLK_D, 0x9, "d" }, .{ c.SDLK_F, 0xE, "f" }, .{ c.SDLK_Z, 0xA, "z" }, .{ c.SDLK_X, 0x0, "x" }, .{ c.SDLK_C, 0xB, "c" }, .{ c.SDLK_V, 0xF, "v" } };
 
 const gfxHeight = 32;
 const gfxWidth = 64;
@@ -79,6 +75,8 @@ const CPU = struct {
     //timers
     delay_timer: timer = timer{},
     sound_timer: timer = timer{},
+    lastTimed: u64 = undefined,
+    downcount: u64 = undefined,
 
     ///program stack
     stack: [16]u16 = undefined,
@@ -112,6 +110,8 @@ const CPU = struct {
         self.sp = 0;
         self.opcode = 0;
         self.drawFlag = false;
+        self.lastTimed = c.SDL_GetTicks();
+        self.downcount = 0;
 
         // Load fontset
         for (0..FONTSET.len) |i| {
@@ -133,7 +133,11 @@ const CPU = struct {
         }
     }
 
+<<<<<<< HEAD
      fn reload(self: *@This()) !void {
+=======
+    fn reload(self: *@This()) !void {
+>>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
         try self.loadExe(self.romPath);
     }
 
@@ -233,7 +237,7 @@ const CPU = struct {
                         // print("V[x] {d} - V[y] {d}\n", .{self.V[x], self.V[y]});
                         const result = @subWithOverflow(self.V[x], self.V[y]);
                         self.V[x] = result[0];
-                        self.V[0xF] = result[1] ^ 1; 
+                        self.V[0xF] = result[1] ^ 1;
                         // print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
                     },
                     0x0006 => { // 8XY6 Shifts VX to the right by 1, then stores the least significant bit of VX prior to the shift into VF)
@@ -248,7 +252,7 @@ const CPU = struct {
                         // print("V[y] {d} - V[x] {d}\n", .{self.V[y], self.V[x]});
                         const result = @subWithOverflow(self.V[y], self.V[x]);
                         self.V[x] = result[0];
-                        self.V[0xF] = result[1] ^ 1; 
+                        self.V[0xF] = result[1] ^ 1;
                         // print("= {d} : carry {d}\n", .{self.V[x], self.V[0xF]});
                     },
                     0x000E => { // 8XYE Shifts VX to the left by 1, then sets VF to 1 if the most significant bit of VX prior to that shift was set, or to 0 if it was unset.
@@ -318,7 +322,7 @@ const CPU = struct {
             0xE000 => {
                 switch (self.opcode & 0x000F) {
                     0x0001 => { // EXA1 if (key() != Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is not pressed (usually the next instruction is a jump to skip a code block)
-                        const x = (self.opcode & 0x0F00) >> 8; 
+                        const x = (self.opcode & 0x0F00) >> 8;
                         if (!self.key[@as(u4, @truncate(self.V[x]))]) {
                             // print("skipped not pressed, val : {any}\n", .{@as(u4, @truncate(self.V[x]))});
                             self.pc += 2;
@@ -347,12 +351,12 @@ const CPU = struct {
                         const x = (self.opcode & 0xF00) >> 8;
                         var found = false;
                         for (self.key, 0..) |k, i| {
-                            if (k){
+                            if (k) {
                                 found = true;
                                 self.V[x] = @intCast(i);
                                 break;
                             }
-                        } 
+                        }
                         if (!found) {
                             self.pc -= 2;
                         }
@@ -371,11 +375,15 @@ const CPU = struct {
                     },
                     0x0029 => { // FX29 Sets I to the location of the sprite for the character in VX(only consider the lowest nibble). Characters 0-F (in hexadecimal) are represented by a 4x5 font
                         const x = (self.opcode & 0xF00) >> 8;
-                        self.I = self.memory[ @as(u8, @truncate(self.V[x]))*5];
+                        self.I = self.memory[@as(u8, @truncate(self.V[x])) * 5];
                     },
                     0x0033 => { // FX33 Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2
                         const x = (self.opcode & 0xF00) >> 8;
+<<<<<<< HEAD
                         // print("V[x]: {d}, I: 0x{X}\t", .{self.V[x], self.I});     
+=======
+                        // print("V[x]: {d}, I: 0x{X}\t", .{self.V[x], self.I});
+>>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
                         self.memory[self.I] = self.V[x] / 100;
                         self.memory[self.I + 1] = (self.V[x] / 10) % 10;
                         self.memory[self.I + 2] = self.V[x] % 10;
@@ -384,18 +392,22 @@ const CPU = struct {
                     0x0055 => { // Stores from V0 to VX (including VX) in memory, starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified
                         const x = (self.opcode & 0xF00) >> 8;
                         var i: u5 = 0;
-                        while(i <= x) {
+                        while (i <= x) {
                             self.memory[self.I + i] = self.V[i];
-                            i+=1;
+                            i += 1;
                         }
                     },
                     0x0065 => { // FX65 Fills from V0 to VX (including VX) with values from memory, starting at address I. The offset from I is increased by 1 for each value read, but I itself is left unmodified.
                         const x = (self.opcode & 0xF00) >> 8;
                         var i: u5 = 0;
+<<<<<<< HEAD
                         while(i <= x) {
+=======
+                        while (i <= x) {
+>>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
                             // print("int overflow? {d}\n", .{i});
                             self.V[i] = self.memory[self.I + i];
-                            i+=1;
+                            i += 1;
                         }
                     },
                     else => {
@@ -410,9 +422,26 @@ const CPU = struct {
             },
         }
         //update timers TODO: Update at 60hz
+<<<<<<< HEAD
         if (self.delay_timer.time > 0)
+=======
+        const timerHZ = 60;
+        const timerCPS = c.SDL_GetTicks();
+
+        if (self.delay_timer.time > 0 and timerCPS >= self.lastTimed + 1000) {
+            print("Timer HZ: {d}\n", .{self.downcount});
+            self.downcount = 0;
+            self.lastTimed = timerCPS;
+        }
+
+        if (self.delay_timer.time > 0 and timerCPS > (1000 / timerHZ)) {
+>>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
             self.delay_timer.countdown();
-        if (self.sound_timer.time > 0) {
+            // self.lastTimed = c.SDL_GetTicks();
+            self.downcount += 1;
+        }
+
+        if (self.sound_timer.time > 0 and timerCPS > (1000 / timerHZ)) {
             if (self.sound_timer.time == 1)
                 print("BEEP!\n", .{});
             self.sound_timer.countdown();
@@ -433,7 +462,7 @@ fn getKeyvalueFromKeycode(keycode: c_uint) isize {
 }
 
 fn getCharFromKeycode(keyvalue: c_uint) *const [1:0]u8 {
-     for (0..16) |i| {
+    for (0..16) |i| {
         const mapping = keymap[@as(u4, @truncate(i))];
         const key = mapping[1];
         const char = mapping[2];
@@ -475,7 +504,11 @@ fn getEvents(cpu: *CPU) !void {
                             cpu.key[@intCast(mapping)] = true;
                         }
                         print("keymap | {any}\n", .{cpu.key}); //true here
+<<<<<<< HEAD
                     }
+=======
+                    },
+>>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
                 }
             },
             c.SDL_EVENT_KEY_UP => {
@@ -537,10 +570,10 @@ pub fn main() !void {
     _ = BC;
     _ = flags;
 
-    
     var cpu = CPU{};
     cpu.init();
     try cpu.loadExe(game); // load exe here
+<<<<<<< HEAD
    
 //    const nsPs = 1_000_000_000;
    const cycleFreq = 800;
@@ -559,12 +592,23 @@ pub fn main() !void {
             frameCount = 0;
             print("Current FPS: {d}\n", .{fps});
         }
+=======
+
+    //    const nsPs = 1_000_000_000;
+    const cycleFreq = 700;
+    var timerFPS: u64 = 0;
+    var lastFrame: u64 = 0;
+    // running = false;
+    while (running) {
+        lastFrame = c.SDL_GetTicks();
+        // cpu.lastTimed = c.SDL_GetTicks();
+>>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
         try cpu.cycle();
         if (cpu.drawFlag) {
             //draw here
-            _ = c.SDL_SetRenderDrawColor(renderer, 50, 0, 175, 10);
+            _ = c.SDL_SetRenderDrawColor(renderer, 0, 75, 20, 10); // dark purple
             _ = c.SDL_RenderClear(renderer);
-            _ = c.SDL_SetRenderDrawColor(renderer, 120, 0, 255, 10);
+            _ = c.SDL_SetRenderDrawColor(renderer, 150, 0, 200, 10); // light purple
             var cell = c.SDL_FRect{};
             for (0..gfxHeight) |y| {
                 for (0..gfxWidth) |x| {
@@ -582,6 +626,7 @@ pub fn main() !void {
             }
             _ = c.SDL_RenderPresent(renderer);
             cpu.drawFlag = false;
+<<<<<<< HEAD
         }   
         frameCount+=1;
         timerFPS = c.SDL_GetTicks() - lastFrame;
@@ -589,5 +634,13 @@ pub fn main() !void {
             c.SDL_Delay(@intCast((1000/cycleFreq) - timerFPS));
         }     
         try getEvents(&cpu);  
+=======
+        }
+        timerFPS = c.SDL_GetTicks() - lastFrame;
+        if (timerFPS < (1000 / cycleFreq)) {
+            c.SDL_Delay(@intCast((1000 / cycleFreq) - timerFPS));
+        }
+        try getEvents(&cpu);
+>>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
     }
 }
