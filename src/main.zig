@@ -87,6 +87,7 @@ const CPU = struct {
     drawFlag: bool = false,
 
     key: [16]bool = undefined,
+    romPath: []const u8 = undefined,
 
     // 0x000-0x1FF - Chip 8 interpreter (contains font set in emu)
     // 0x050-0x0A0 - Used for the built in 4x5 pixel font set (0-F)
@@ -102,7 +103,7 @@ const CPU = struct {
         init0u8Array(&self.V);
         init0u2Array(&self.gfx);
         @memset(&self.stack, 0);
-        @memset(&self.gfx, 0);
+        // @memset(&self.gfx, 0);
         @memset(&self.key, false);
 
         //reset values
@@ -119,6 +120,7 @@ const CPU = struct {
     }
     ///Loads a chip-8 program to be executed
     fn loadExe(self: *@This(), file_path: []const u8) !void {
+        self.romPath = file_path;
         const rom = try std.fs.cwd().openFile(file_path, .{});
         defer rom.close();
         const stats = try rom.stat();
@@ -129,6 +131,10 @@ const CPU = struct {
             self.memory[i + self.pc] = byte;
             // print("0x{x} ", .{byte});
         }
+    }
+
+     fn reload(self: *@This()) !void {
+        try self.loadExe(self.romPath);
     }
 
     pub fn cycle(self: *@This()) !void {
@@ -296,7 +302,7 @@ const CPU = struct {
                         const shift: u16 = @as(u16, 0x80) >> @as(u3, @truncate(col));
                         const spritePixel = spriteByte & shift;
                         // const screenPixel = self.gfx[(yPos + row) * gfxWidth + (xPos + col)];
-                        if (spritePixel != 0) {
+                        if (spritePixel != 0 and (yPos + row) * gfxWidth + (xPos + col) < gfxHeight * gfxWidth) {
                             // Screen pixel also on - collision
                             if (self.gfx[(yPos + row) * gfxWidth + (xPos + col)] == 1) {
                                 self.V[0xF] = 1;
@@ -314,22 +320,16 @@ const CPU = struct {
                     0x0001 => { // EXA1 if (key() != Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is not pressed (usually the next instruction is a jump to skip a code block)
                         const x = (self.opcode & 0x0F00) >> 8; 
                         if (!self.key[@as(u4, @truncate(self.V[x]))]) {
-                            print("skipped not pressed, val : {any}\n", .{@as(u4, @truncate(self.V[x]))});
+                            // print("skipped not pressed, val : {any}\n", .{@as(u4, @truncate(self.V[x]))});
                             self.pc += 2;
-                        } else {
-                            print("key : {s}, {any} pressed\n", .{((getCharFromKeycode(@as(u4, @truncate(self.V[x]))))), @as(u4, @truncate(self.V[x]))}); 
-                            }
-                        print("value of key in Vx {any}\n", .{self.key[@as(u4, @truncate(self.V[x]))]});
+                        }
                     },
                     0x000E => { // EX9E if (key() == Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is pressed (usually the next instruction is a jump to skip a code block)
                         const x = (self.opcode & 0x0F00) >> 8;
                         if (self.key[@as(u4, @truncate(self.V[x]))]) {
-                            print("skipped pressed, val : {any}\n", .{@as(u4, @truncate(self.V[x]))});
+                            // print("skipped pressed, val : {any}\n", .{@as(u4, @truncate(self.V[x]))});
                             self.pc += 2;
-                        } else {
-                            print("key : {s}, {any} not pressed\n", .{((getCharFromKeycode(@as(u4, @truncate(self.V[x]))))), @as(u4, @truncate(self.V[x]))}); 
-                            }
-                        print("value of key in Vx {any}\n", .{self.key[@as(u4, @truncate(self.V[x]))]});
+                        }
                     },
                     else => {
                         print("Opcode 0xE___: 0x{x} not handled\n", .{self.opcode});
@@ -375,11 +375,11 @@ const CPU = struct {
                     },
                     0x0033 => { // FX33 Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2
                         const x = (self.opcode & 0xF00) >> 8;
-                        print("V[x]: {d}, I: 0x{X}\t", .{self.V[x], self.I});     
+                        // print("V[x]: {d}, I: 0x{X}\t", .{self.V[x], self.I});     
                         self.memory[self.I] = self.V[x] / 100;
                         self.memory[self.I + 1] = (self.V[x] / 10) % 10;
                         self.memory[self.I + 2] = self.V[x] % 10;
-                        print(" {d}{d}{d}\n", .{self.memory[self.I], self.memory[self.I+1], self.memory[self.I+2]});
+                        // print(" {d}{d}{d}\n", .{self.memory[self.I], self.memory[self.I+1], self.memory[self.I+2]});
                     },
                     0x0055 => { // Stores from V0 to VX (including VX) in memory, starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified
                         const x = (self.opcode & 0xF00) >> 8;
@@ -393,7 +393,7 @@ const CPU = struct {
                         const x = (self.opcode & 0xF00) >> 8;
                         var i: u5 = 0;
                         while(i <= x) {
-                            print("int overflow? {d}\n", .{i});
+                            // print("int overflow? {d}\n", .{i});
                             self.V[i] = self.memory[self.I + i];
                             i+=1;
                         }
@@ -409,7 +409,7 @@ const CPU = struct {
                 return error.OpcodeNotDecoded;
             },
         }
-        //update timers
+        //update timers TODO: Update at 60hz
         if (self.delay_timer.time > 0)
             self.delay_timer.countdown();
         if (self.sound_timer.time > 0) {
@@ -461,13 +461,22 @@ fn getEvents(cpu: *CPU) !void {
     while (c.SDL_PollEvent(&event)) {
         switch (event.type) {
             c.SDL_EVENT_KEY_DOWN => {
-                const keycode = event.key.key;
-                const mapping = getKeyvalueFromKeycode(keycode);
-                print("Down: key: {d}, mapping: {d}\n", .{ keycode, mapping });
-                if (mapping < 16) {
-                    cpu.key[@intCast(mapping)] = true;
+                switch (event.key.key) {
+                    c.SDLK_RETURN => {
+                        print("enter key down\n", .{});
+                        cpu.init();
+                        try cpu.reload();
+                    },
+                    else => {
+                        const keycode = event.key.key;
+                        const mapping = getKeyvalueFromKeycode(keycode);
+                        print("Down: key: {d}, mapping: {d}\n", .{ keycode, mapping });
+                        if (mapping < 16) {
+                            cpu.key[@intCast(mapping)] = true;
+                        }
+                        print("keymap | {any}\n", .{cpu.key}); //true here
+                    }
                 }
-                print("keymap | {any}\n", .{cpu.key}); //true here
             },
             c.SDL_EVENT_KEY_UP => {
                 const keycode = event.key.key;
@@ -517,7 +526,7 @@ pub fn main() !void {
     const logo2 = "roms/2-ibm-logo.ch8";
     const betterTest = "roms/3-corax+.ch8";
     const keypad = "roms/6-keypad.ch8";
-    const game = "roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
+    const game = "roms/games/Most Dangerous Game [Peter Maruhnic].ch8";
 
     _ = keypad;
     // _ = game;
@@ -532,26 +541,25 @@ pub fn main() !void {
     var cpu = CPU{};
     cpu.init();
     try cpu.loadExe(game); // load exe here
-    // try cpu.loadExe(IBM);
-    // for (0..16) |i| {
-    //     print("{any}\n", .{keymap[@as(u4, @truncate(i))]});
-    // }
+   
+//    const nsPs = 1_000_000_000;
+   const cycleFreq = 800;
+
+   var frameCount: u64 = 0;
+   var timerFPS: u64 = 0;
+   var lastFrame: u64 = 0;
+   var fps: u64 = 0;
+   var lastTime: u64 = 0;
     // running = false;
-    
-    const nsPs = 1_000_000_000;
-    const cyclesPerNS: u64 = 700 * 60 / nsPs;
-    var lastTime: i128 = 0; // Store the time of the last frame
-    // const cycleDelay: u64=  cyclesPerSecond;
-
     while (running) {    
-        const currentTime = std.time.nanoTimestamp();
-        const frameDelta = currentTime - lastTime;
-
-        // Poll for events in a non-blocking way
-        try getEvents(&cpu);    
+        lastFrame = c.SDL_GetTicks();
+        if (lastFrame>=(lastTime+1000)) {
+            lastTime = lastFrame;
+            fps = frameCount;
+            frameCount = 0;
+            print("Current FPS: {d}\n", .{fps});
+        }
         try cpu.cycle();
-        // @memset(&cpu.key, false);
-        // print("keymap | {any}\n", .{cpu.key}); // all false here
         if (cpu.drawFlag) {
             //draw here
             _ = c.SDL_SetRenderDrawColor(renderer, 50, 0, 175, 10);
@@ -574,15 +582,12 @@ pub fn main() !void {
             }
             _ = c.SDL_RenderPresent(renderer);
             cpu.drawFlag = false;
-        }
-       // Frame rate control logic (ensuring a consistent FPS)
-        // Frame rate control logic (ensuring a consistent FPS)
-        lastTime = currentTime;  // Update the lastTime
-
-        // Sleep only if we've already done everything needed for the frame
-        if (frameDelta < cyclesPerNS) {
-            // Sleep for the remaining time
-            std.time.sleep(@intCast(cyclesPerNS - frameDelta));
-        }
+        }   
+        frameCount+=1;
+        timerFPS = c.SDL_GetTicks() - lastFrame;
+        if (timerFPS<(1000/cycleFreq)) {
+            c.SDL_Delay(@intCast((1000/cycleFreq) - timerFPS));
+        }     
+        try getEvents(&cpu);  
     }
 }
