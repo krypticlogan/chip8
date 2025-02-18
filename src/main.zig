@@ -31,13 +31,18 @@ const FONTSET = [_]u8{
 };
 const timer = struct {
     time: u8 = undefined,
+    lastUpdated: u64 = 0,
 
     fn init(self: *@This(), time: u8) void {
         self.time = time;
     }
 
-    fn countdown(self: *@This()) void {
-        self.time -= 1;
+    fn countdown(self: *@This(), ticks: u64) void {
+        const result = @subWithOverflow(self.time, @as(u8, @intCast(ticks)));
+        if (result[1] == 1) {
+            self.time = 0;
+            }
+        else self.time = result[0];
     }
 };
 
@@ -75,8 +80,6 @@ const CPU = struct {
     //timers
     delay_timer: timer = timer{},
     sound_timer: timer = timer{},
-    lastTimed: u64 = undefined,
-    downcount: u64 = undefined,
 
     ///program stack
     stack: [16]u16 = undefined,
@@ -110,8 +113,7 @@ const CPU = struct {
         self.sp = 0;
         self.opcode = 0;
         self.drawFlag = false;
-        self.lastTimed = c.SDL_GetTicks();
-        self.downcount = 0;
+        
 
         // Load fontset
         for (0..FONTSET.len) |i| {
@@ -133,11 +135,7 @@ const CPU = struct {
         }
     }
 
-<<<<<<< HEAD
-     fn reload(self: *@This()) !void {
-=======
     fn reload(self: *@This()) !void {
->>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
         try self.loadExe(self.romPath);
     }
 
@@ -364,10 +362,12 @@ const CPU = struct {
                     0x0015 => { // FX15 Sets the delay timer to VX
                         const x = (self.opcode & 0xF00) >> 8;
                         self.delay_timer.time = self.V[x];
+                        self.delay_timer.lastUpdated = c.SDL_GetTicks();
                     },
                     0x0018 => { // FX18 Sets the sound timer to VX.
                         const x = (self.opcode & 0xF00) >> 8;
-                        self.delay_timer.time = self.V[x];
+                        self.sound_timer.time = self.V[x];
+                        self.sound_timer.lastUpdated = c.SDL_GetTicks();
                     },
                     0x001E => { // Adds VX to I. VF is not affected
                         const x = (self.opcode & 0xF00) >> 8;
@@ -379,11 +379,7 @@ const CPU = struct {
                     },
                     0x0033 => { // FX33 Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2
                         const x = (self.opcode & 0xF00) >> 8;
-<<<<<<< HEAD
-                        // print("V[x]: {d}, I: 0x{X}\t", .{self.V[x], self.I});     
-=======
                         // print("V[x]: {d}, I: 0x{X}\t", .{self.V[x], self.I});
->>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
                         self.memory[self.I] = self.V[x] / 100;
                         self.memory[self.I + 1] = (self.V[x] / 10) % 10;
                         self.memory[self.I + 2] = self.V[x] % 10;
@@ -400,11 +396,7 @@ const CPU = struct {
                     0x0065 => { // FX65 Fills from V0 to VX (including VX) with values from memory, starting at address I. The offset from I is increased by 1 for each value read, but I itself is left unmodified.
                         const x = (self.opcode & 0xF00) >> 8;
                         var i: u5 = 0;
-<<<<<<< HEAD
-                        while(i <= x) {
-=======
                         while (i <= x) {
->>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
                             // print("int overflow? {d}\n", .{i});
                             self.V[i] = self.memory[self.I + i];
                             i += 1;
@@ -421,30 +413,20 @@ const CPU = struct {
                 return error.OpcodeNotDecoded;
             },
         }
-        //update timers TODO: Update at 60hz
-<<<<<<< HEAD
-        if (self.delay_timer.time > 0)
-=======
+        //update timers
         const timerHZ = 60;
-        const timerCPS = c.SDL_GetTicks();
-
-        if (self.delay_timer.time > 0 and timerCPS >= self.lastTimed + 1000) {
-            print("Timer HZ: {d}\n", .{self.downcount});
-            self.downcount = 0;
-            self.lastTimed = timerCPS;
+        if (self.delay_timer.time > 0) {
+            if (c.SDL_GetTicks() >= self.delay_timer.lastUpdated + 1000) {
+            }
+            const seconds = (c.SDL_GetTicks() - self.delay_timer.lastUpdated) / 1000;
+            self.delay_timer.countdown(seconds*timerHZ);
         }
 
-        if (self.delay_timer.time > 0 and timerCPS > (1000 / timerHZ)) {
->>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
-            self.delay_timer.countdown();
-            // self.lastTimed = c.SDL_GetTicks();
-            self.downcount += 1;
-        }
-
-        if (self.sound_timer.time > 0 and timerCPS > (1000 / timerHZ)) {
-            if (self.sound_timer.time == 1)
-                print("BEEP!\n", .{});
-            self.sound_timer.countdown();
+        if (self.sound_timer.time > 0) {
+            if (c.SDL_GetTicks() >= self.sound_timer.lastUpdated + 1000) {
+            }
+            const seconds = (c.SDL_GetTicks() - self.sound_timer.lastUpdated) / 1000;
+            self.sound_timer.countdown(seconds*timerHZ);
         }
     }
 };
@@ -504,11 +486,7 @@ fn getEvents(cpu: *CPU) !void {
                             cpu.key[@intCast(mapping)] = true;
                         }
                         print("keymap | {any}\n", .{cpu.key}); //true here
-<<<<<<< HEAD
                     }
-=======
-                    },
->>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
                 }
             },
             c.SDL_EVENT_KEY_UP => {
@@ -560,9 +538,10 @@ pub fn main() !void {
     const betterTest = "roms/3-corax+.ch8";
     const keypad = "roms/6-keypad.ch8";
     const game = "roms/games/Most Dangerous Game [Peter Maruhnic].ch8";
+    const quirks = "roms/5-quirks.ch8";
 
     _ = keypad;
-    // _ = game;
+    _ = game;
     _ = betterTest;
     _ = testRom;
     _ = IBM;
@@ -572,37 +551,24 @@ pub fn main() !void {
 
     var cpu = CPU{};
     cpu.init();
-    try cpu.loadExe(game); // load exe here
-<<<<<<< HEAD
-   
-//    const nsPs = 1_000_000_000;
-   const cycleFreq = 800;
-
-   var frameCount: u64 = 0;
-   var timerFPS: u64 = 0;
-   var lastFrame: u64 = 0;
-   var fps: u64 = 0;
-   var lastTime: u64 = 0;
-    // running = false;
-    while (running) {    
-        lastFrame = c.SDL_GetTicks();
-        if (lastFrame>=(lastTime+1000)) {
-            lastTime = lastFrame;
-            fps = frameCount;
-            frameCount = 0;
-            print("Current FPS: {d}\n", .{fps});
-        }
-=======
+    try cpu.loadExe(quirks); // load exe here
 
     //    const nsPs = 1_000_000_000;
     const cycleFreq = 700;
     var timerFPS: u64 = 0;
     var lastFrame: u64 = 0;
+    var frameCount: u32 = 0;
+    var lastTime: u64 = 0;
+
     // running = false;
     while (running) {
         lastFrame = c.SDL_GetTicks();
+        if(lastFrame > lastTime+1000) {
+            print("fps: {d}\n", .{frameCount});
+            lastTime = lastFrame;
+            frameCount = 0;
+        }
         // cpu.lastTimed = c.SDL_GetTicks();
->>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
         try cpu.cycle();
         if (cpu.drawFlag) {
             //draw here
@@ -626,21 +592,12 @@ pub fn main() !void {
             }
             _ = c.SDL_RenderPresent(renderer);
             cpu.drawFlag = false;
-<<<<<<< HEAD
-        }   
-        frameCount+=1;
-        timerFPS = c.SDL_GetTicks() - lastFrame;
-        if (timerFPS<(1000/cycleFreq)) {
-            c.SDL_Delay(@intCast((1000/cycleFreq) - timerFPS));
-        }     
-        try getEvents(&cpu);  
-=======
         }
         timerFPS = c.SDL_GetTicks() - lastFrame;
         if (timerFPS < (1000 / cycleFreq)) {
             c.SDL_Delay(@intCast((1000 / cycleFreq) - timerFPS));
         }
+        frameCount+=1;
         try getEvents(&cpu);
->>>>>>> bfe77ff28a8a0de6926bd2e7d97ec23d51c42fdb
     }
 }
