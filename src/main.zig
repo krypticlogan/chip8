@@ -29,6 +29,7 @@ const FONTSET = [_]u8{
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 };
+
 const timer = struct {
     time: u8 = undefined,
     lastUpdated: u64 = 0,
@@ -265,7 +266,7 @@ const CPU = struct {
                     },
                 }
             },
-            0x9000 => { //9XY0 if (Vx != Vy)	Skips the next instruction if VX does not equal VY. (Usually the next instruction is a jump to skip a code block)
+            0x9000 => { // 9XY0 if (Vx != Vy)	Skips the next instruction if VX does not equal VY. (Usually the next instruction is a jump to skip a code block)
                 const x = (self.opcode & 0x0F00) >> 8;
                 const y = (self.opcode & 0x00F0) >> 4;
                 if (self.V[x] != self.V[y]) {
@@ -595,7 +596,7 @@ pub fn main() !void {
         }
         timerFPS = c.SDL_GetTicks() - lastFrame;
         if (timerFPS < (1000 / cycleFreq)) {
-            c.SDL_Delay(@intCast((1000 / cycleFreq) - timerFPS));
+            std.time.sleep(@intCast((1000000000 / cycleFreq) - timerFPS));
         }
         frameCount+=1;
         try getEvents(&cpu);
