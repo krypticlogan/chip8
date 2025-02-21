@@ -259,7 +259,7 @@ const CPU = struct {
                         const x = (self.opcode & 0x0F00) >> 8;
                         const prior = self.V[x];
                         self.V[x] = self.V[x] << 1;
-                        self.V[0xF] = @as(u1, @truncate(prior >> 7));
+                        self.V[0xF] = @intCast(@as(u1, @truncate(prior >> 7)));
                     },
                     else => {
                         print("Opcode 0x8___: 0x{x} not handled", .{self.opcode});
@@ -369,7 +369,7 @@ const CPU = struct {
                     },
                     0x0029 => { // FX29 Sets I to the location of the sprite for the character in VX(only consider the lowest nibble). Characters 0-F (in hexadecimal) are represented by a 4x5 font
                         const x = (self.opcode & 0xF00) >> 8;
-                        self.I = self.memory[@as(u8, @truncate(self.V[x])) * 5];
+                        self.I = @as(u4, @truncate(self.V[x])) * @as(u16, 5);
                     },
                     0x0033 => { // FX33 Stores the binary-coded decimal representation of VX, with the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2
                         const x = (self.opcode & 0xF00) >> 8;
@@ -410,15 +410,11 @@ const CPU = struct {
         //update timers
         const timerHZ = 60;
         if (self.delay_timer.time > 0) {
-            if (c.SDL_GetTicks() >= self.delay_timer.lastUpdated + 1000) {
-            }
             const seconds = (c.SDL_GetTicks() - self.delay_timer.lastUpdated) / 1000;
             self.delay_timer.countdown(seconds*timerHZ);
         }
 
         if (self.sound_timer.time > 0) {
-            if (c.SDL_GetTicks() >= self.sound_timer.lastUpdated + 1000) {
-            }
             const seconds = (c.SDL_GetTicks() - self.sound_timer.lastUpdated) / 1000;
             self.sound_timer.countdown(seconds*timerHZ);
         }
@@ -537,8 +533,11 @@ pub fn main() !void {
     const betterTest = "roms/3-corax+.ch8";
     const keypad = "roms/6-keypad.ch8";
     const game = "roms/games/Most Dangerous Game [Peter Maruhnic].ch8";
+    const breakout = "roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
     const quirks = "roms/5-quirks.ch8";
-
+    
+    _ = breakout;
+    // _ = quirks;
     _ = keypad;
     _ = game;
     _ = betterTest;
@@ -553,8 +552,8 @@ pub fn main() !void {
     try cpu.loadExe(quirks); // load exe here
 
     //    const nsPs = 1_000_000_000;
-    const cycleFreq = 700;
-    var timerFPS: u64 = 0;
+    const cycleFreq = 2500;
+    // var timerFPS: u64 = 0;
     var lastFrame: u64 = 0;
     var frameCount: u32 = 0;
     var lastTime: u64 = 0;
@@ -567,7 +566,6 @@ pub fn main() !void {
             lastTime = lastFrame;
             frameCount = 0;
         }
-        // cpu.lastTimed = c.SDL_GetTicks();
         try cpu.cycle();
         if (cpu.drawFlag) {
             //draw here
@@ -597,6 +595,7 @@ pub fn main() !void {
             std.time.sleep(@intCast((1000000000 / cycleFreq) - timerFPS));
         }
         frameCount+=1;
+        
         try getEvents(&cpu);
     }
 }
