@@ -29,6 +29,7 @@ const FONTSET = [_]u8{
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80, // F
 };
+
 const timer = struct {
     time: u8 = undefined,
     lastUpdated: u64 = 0,
@@ -89,6 +90,7 @@ const CPU = struct {
 
     key: [16]bool = undefined,
     romPath: []const u8 = undefined,
+    keyreleased: ?u8 = undefined,
 
     // 0x000-0x1FF - Chip 8 interpreter (contains font set in emu)
     // 0x050-0x0A0 - Used for the built in 4x5 pixel font set (0-F)
@@ -265,7 +267,7 @@ const CPU = struct {
                     },
                 }
             },
-            0x9000 => { //9XY0 if (Vx != Vy)	Skips the next instruction if VX does not equal VY. (Usually the next instruction is a jump to skip a code block)
+            0x9000 => { // 9XY0 if (Vx != Vy)	Skips the next instruction if VX does not equal VY. (Usually the next instruction is a jump to skip a code block)
                 const x = (self.opcode & 0x0F00) >> 8;
                 const y = (self.opcode & 0x00F0) >> 4;
                 if (self.V[x] != self.V[y]) {
@@ -346,18 +348,10 @@ const CPU = struct {
                         self.V[x] = self.delay_timer.time;
                     },
                     0x000A => { // FX0A A key press is awaited, and then stored in VX (blocking operation, all instruction halted until next key event, delay and sound timers should continue processing)
-                        const x = (self.opcode & 0xF00) >> 8;
-                        var found = false;
-                        for (self.key, 0..) |k, i| {
-                            if (k) {
-                                found = true;
-                                self.V[x] = @intCast(i);
-                                break;
-                            }
-                        }
-                        if (!found) {
-                            self.pc -= 2;
-                        }
+                        const x = (self.opcode & 0x0F00) >> 8;
+                        if (self.keyreleased) |key|  {
+                            self.V[x] = key;
+                        } else self.pc-=2;
                     },
                     0x0015 => { // FX15 Sets the delay timer to VX
                         const x = (self.opcode & 0xF00) >> 8;
@@ -428,6 +422,10 @@ const CPU = struct {
             const seconds = (c.SDL_GetTicks() - self.sound_timer.lastUpdated) / 1000;
             self.sound_timer.countdown(seconds*timerHZ);
         }
+
+        if (self.pc % 2 == 0) {
+            self.keyreleased = null;
+        }
     }
 };
 
@@ -495,6 +493,7 @@ fn getEvents(cpu: *CPU) !void {
                 print("Up: key: {d}, mapping: {d}\n", .{ keycode, mapping });
                 if (mapping < 16) {
                     cpu.key[@intCast(mapping)] = false;
+                    cpu.keyreleased = @as(?u8, (@intCast(mapping)));
                 }
                 print("keymap | {any}\n", .{cpu.key});
             },
@@ -595,7 +594,7 @@ pub fn main() !void {
         }
         timerFPS = c.SDL_GetTicks() - lastFrame;
         if (timerFPS < (1000 / cycleFreq)) {
-            c.SDL_Delay(@intCast((1000 / cycleFreq) - timerFPS));
+            std.time.sleep(@intCast((1000000000 / cycleFreq) - timerFPS));
         }
         frameCount+=1;
         try getEvents(&cpu);
