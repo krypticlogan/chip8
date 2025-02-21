@@ -42,8 +42,7 @@ const timer = struct {
         const result = @subWithOverflow(self.time, @as(u8, @intCast(ticks)));
         if (result[1] == 1) {
             self.time = 0;
-            }
-        else self.time = result[0];
+        } else self.time = result[0];
     }
 };
 
@@ -115,7 +114,6 @@ const CPU = struct {
         self.sp = 0;
         self.opcode = 0;
         self.drawFlag = false;
-        
 
         // Load fontset
         for (0..FONTSET.len) |i| {
@@ -323,15 +321,17 @@ const CPU = struct {
                 switch (self.opcode & 0x000F) {
                     0x0001 => { // EXA1 if (key() != Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is not pressed (usually the next instruction is a jump to skip a code block)
                         const x = (self.opcode & 0x0F00) >> 8;
-                        if (!self.key[@as(u4, @truncate(self.V[x]))]) {
-                            // print("skipped not pressed, val : {any}\n", .{@as(u4, @truncate(self.V[x]))});
+                        const keycode = @as(u4, @truncate(self.V[x]));
+                        if (!self.key[keycode]) {
+                            // print("No key: {d}, mapping: {c}\n", .{ keycode, getCharFromKeycode(keycode) });
                             self.pc += 2;
                         }
                     },
                     0x000E => { // EX9E if (key() == Vx)	Skips the next instruction if the key stored in VX(only consider the lowest nibble) is pressed (usually the next instruction is a jump to skip a code block)
                         const x = (self.opcode & 0x0F00) >> 8;
-                        if (self.key[@as(u4, @truncate(self.V[x]))]) {
-                            // print("skipped pressed, val : {any}\n", .{@as(u4, @truncate(self.V[x]))});
+                        const keycode = @as(u4, @truncate(self.V[x]));
+                        if (self.key[keycode]) {
+                            // print("Key: {d}, mapping: {c}\n", .{ keycode, getCharFromKeycode(keycode) });
                             self.pc += 2;
                         }
                     },
@@ -349,9 +349,10 @@ const CPU = struct {
                     },
                     0x000A => { // FX0A A key press is awaited, and then stored in VX (blocking operation, all instruction halted until next key event, delay and sound timers should continue processing)
                         const x = (self.opcode & 0x0F00) >> 8;
-                        if (self.keyreleased) |key|  {
+                        if (self.keyreleased) |key| {
                             self.V[x] = key;
-                        } else self.pc-=2;
+                            // print("Key caught: key: {d}, mapping: {d}\n", .{ key, getCharFromKeycode(key) });
+                        } else self.pc -= 2;
                     },
                     0x0015 => { // FX15 Sets the delay timer to VX
                         const x = (self.opcode & 0xF00) >> 8;
@@ -411,12 +412,12 @@ const CPU = struct {
         const timerHZ = 60;
         if (self.delay_timer.time > 0) {
             const seconds = (c.SDL_GetTicks() - self.delay_timer.lastUpdated) / 1000;
-            self.delay_timer.countdown(seconds*timerHZ);
+            self.delay_timer.countdown(seconds * timerHZ);
         }
 
         if (self.sound_timer.time > 0) {
             const seconds = (c.SDL_GetTicks() - self.sound_timer.lastUpdated) / 1000;
-            self.sound_timer.countdown(seconds*timerHZ);
+            self.sound_timer.countdown(seconds * timerHZ);
         }
 
         if (self.pc % 2 == 0) {
@@ -475,23 +476,23 @@ fn getEvents(cpu: *CPU) !void {
                     else => {
                         const keycode = event.key.key;
                         const mapping = getKeyvalueFromKeycode(keycode);
-                        print("Down: key: {d}, mapping: {d}\n", .{ keycode, mapping });
+                        // print("Down: key: {d}, mapping: {d}\n", .{ keycode, mapping });
                         if (mapping < 16) {
                             cpu.key[@intCast(mapping)] = true;
                         }
-                        print("keymap | {any}\n", .{cpu.key}); //true here
-                    }
+                        // print("keymap | {any}\n", .{cpu.key}); //true here
+                    },
                 }
             },
             c.SDL_EVENT_KEY_UP => {
                 const keycode = event.key.key;
                 const mapping = getKeyvalueFromKeycode(keycode);
-                print("Up: key: {d}, mapping: {d}\n", .{ keycode, mapping });
+                // print("Up: key: {d}, mapping: {d}\n", .{ keycode, mapping });
                 if (mapping < 16) {
                     cpu.key[@intCast(mapping)] = false;
                     cpu.keyreleased = @as(?u8, (@intCast(mapping)));
                 }
-                print("keymap | {any}\n", .{cpu.key});
+                // print("keymap | {any}\n", .{cpu.key});
             },
             c.SDL_EVENT_QUIT => {
                 running = false;
@@ -535,7 +536,7 @@ pub fn main() !void {
     const game = "roms/games/Most Dangerous Game [Peter Maruhnic].ch8";
     const breakout = "roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
     const quirks = "roms/5-quirks.ch8";
-    
+
     _ = breakout;
     // _ = quirks;
     _ = keypad;
@@ -552,50 +553,53 @@ pub fn main() !void {
     try cpu.loadExe(quirks); // load exe here
 
     //    const nsPs = 1_000_000_000;
-    const cycleFreq = 2500;
-    // var timerFPS: u64 = 0;
+    const cycleFreq = 2000;
+    var thisFrame: u64 = 0;
     var lastFrame: u64 = 0;
     var frameCount: u32 = 0;
     var lastTime: u64 = 0;
 
     // running = false;
+
     while (running) {
-        lastFrame = c.SDL_GetTicks();
-        if(lastFrame > lastTime+1000) {
+        thisFrame = c.SDL_GetTicks();
+        if (lastFrame >= lastTime + 1000) {
             print("fps: {d}\n", .{frameCount});
             lastTime = lastFrame;
             frameCount = 0;
         }
-        try cpu.cycle();
-        if (cpu.drawFlag) {
-            //draw here
-            _ = c.SDL_SetRenderDrawColor(renderer, 0, 75, 20, 10); // dark purple
-            _ = c.SDL_RenderClear(renderer);
-            _ = c.SDL_SetRenderDrawColor(renderer, 150, 0, 200, 10); // light purple
-            var cell = c.SDL_FRect{};
-            for (0..gfxHeight) |y| {
-                for (0..gfxWidth) |x| {
-                    const i = x + y * 64;
-                    cell.x = @floatFromInt(x * cellSize);
-                    cell.y = @floatFromInt(y * cellSize);
-                    cell.h = cellSize;
-                    cell.w = cellSize;
-                    if (cpu.gfx[i] == 1) {
-                        if (!c.SDL_RenderFillRect(renderer, &cell)) {
-                            print("SDL_RenderFillRect failed: {s}\n", .{c.SDL_GetError()});
+        const secondsPassed: f32 = @as(f32, @floatFromInt((thisFrame - lastFrame))) / 1000;
+        // if (@as(u64, @intFromFloat(cycleFreq*secondsPassed)) >= 1) print("seconds {d}, cycles {d}\n", .{secondsPassed, @as(u64, @intFromFloat(cycleFreq*secondsPassed))});
+        for (@as(u64, @intFromFloat(cycleFreq*secondsPassed))) |_| {
+            try cpu.cycle();
+
+            if (cpu.drawFlag) {
+                //draw here
+                _ = c.SDL_SetRenderDrawColor(renderer, 0, 75, 20, 10); // dark purple
+                _ = c.SDL_RenderClear(renderer);
+                _ = c.SDL_SetRenderDrawColor(renderer, 150, 0, 200, 10); // light purple
+                var cell = c.SDL_FRect{};
+                for (0..gfxHeight) |y| {
+                    for (0..gfxWidth) |x| {
+                        const i = x + y * 64;
+                        cell.x = @floatFromInt(x * cellSize);
+                        cell.y = @floatFromInt(y * cellSize);
+                        cell.h = cellSize;
+                        cell.w = cellSize;
+                        if (cpu.gfx[i] == 1) {
+                            if (!c.SDL_RenderFillRect(renderer, &cell)) {
+                                print("SDL_RenderFillRect failed: {s}\n", .{c.SDL_GetError()});
+                            }
                         }
                     }
                 }
+                _ = c.SDL_RenderPresent(renderer);
+                cpu.drawFlag = false;
             }
-            _ = c.SDL_RenderPresent(renderer);
-            cpu.drawFlag = false;
+
+            frameCount += 1;
+            lastFrame = c.SDL_GetTicks();
+            try getEvents(&cpu);
         }
-        timerFPS = c.SDL_GetTicks() - lastFrame;
-        if (timerFPS < (1000 / cycleFreq)) {
-            std.time.sleep(@intCast((1000000000 / cycleFreq) - timerFPS));
-        }
-        frameCount+=1;
-        
-        try getEvents(&cpu);
     }
 }
