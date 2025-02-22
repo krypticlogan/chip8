@@ -526,6 +526,7 @@ pub fn main() !void {
         return;
     }
     defer c.SDL_DestroyRenderer(renderer);
+
     const IBM = "roms/IBM_Logo.ch8";
     const testRom = "roms/test_opcode.ch8";
     const BC = "roms/BC_test.ch8";
@@ -537,8 +538,8 @@ pub fn main() !void {
     const breakout = "roms/games/Breakout (Brix hack) [David Winter, 1997].ch8";
     const quirks = "roms/5-quirks.ch8";
 
-    _ = breakout;
-    // _ = quirks;
+    // _ = breakout;
+    _ = quirks;
     _ = keypad;
     _ = game;
     _ = betterTest;
@@ -550,10 +551,9 @@ pub fn main() !void {
 
     var cpu = CPU{};
     cpu.init();
-    try cpu.loadExe(quirks); // load exe here
+    try cpu.loadExe(breakout); // load exe here
 
-    //    const nsPs = 1_000_000_000;
-    const cycleFreq = 2000;
+    const cycleFreq = 1000;
     var thisFrame: u64 = 0;
     var lastFrame: u64 = 0;
     var frameCount: u32 = 0;
@@ -569,12 +569,9 @@ pub fn main() !void {
             frameCount = 0;
         }
         const secondsPassed: f32 = @as(f32, @floatFromInt((thisFrame - lastFrame))) / 1000;
-        // if (@as(u64, @intFromFloat(cycleFreq*secondsPassed)) >= 1) print("seconds {d}, cycles {d}\n", .{secondsPassed, @as(u64, @intFromFloat(cycleFreq*secondsPassed))});
-        for (@as(u64, @intFromFloat(cycleFreq*secondsPassed))) |_| {
+        for (@as(u64, @intFromFloat(cycleFreq * secondsPassed))) |_| {
             try cpu.cycle();
-
-            if (cpu.drawFlag) {
-                //draw here
+            if (cpu.drawFlag) { //draw here
                 _ = c.SDL_SetRenderDrawColor(renderer, 0, 75, 20, 10); // dark purple
                 _ = c.SDL_RenderClear(renderer);
                 _ = c.SDL_SetRenderDrawColor(renderer, 150, 0, 200, 10); // light purple
@@ -596,7 +593,6 @@ pub fn main() !void {
                 _ = c.SDL_RenderPresent(renderer);
                 cpu.drawFlag = false;
             }
-
             frameCount += 1;
             lastFrame = c.SDL_GetTicks();
             try getEvents(&cpu);
